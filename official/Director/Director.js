@@ -11,7 +11,7 @@ API_Meta.Director = {
 }
 
 
-// Jukebox Plus Plus (Fully Enhanced UI with Album/Playlist Toggle, Track Tagging, and Layout Fixes)
+// Director Script
 on('ready', () =>
 {
     
