@@ -1,6 +1,6 @@
 /**
  * TAM2024 - Token Action Manager for D&D 5e (Beacon)
- * Author: [Your Name]
+ * Author: keithcurtis with GPT5
  * Date: 2025-09-02
  */
 
@@ -16,7 +16,6 @@ const TAM2024 = (() => {
         reaction:    { section: "npcreactions",    macroPrefix: "repeating_npcreaction",    macroType: "action",    label: "NPCReaction" },
         legendary:   { section: "npcactions-l",    macroPrefix: "repeating_npcaction-l",    macroType: "action",    label: "NPCLegendary" },
         mythic:      { section: "npcactions-m",    macroPrefix: "repeating_npcaction-m",    macroType: "action",    label: "NPCMythic" }
-    // some categories temporarily removed
     };
 
     // =======================
@@ -98,67 +97,67 @@ function sendMsg(msg, title, message) {
     // =======================
     // processToken
     // =======================
-    async function processToken(token, categories) {
-        const tokenObj = getObj("graphic", token._id);
-        if (!tokenObj) {
-            log(`TAM2024: Could not get token object for ID ${token._id}`);
-            return;
-        }
-
-        const characterId = tokenObj.get("represents");
-        if (!characterId) {
-            log(`TAM2024: Token "${tokenObj.get("name")}" does not represent a character.`);
-            return;
-        }
-
-        log(`TAM2024: Processing token "${tokenObj.get("name")}" representing character ${characterId}`);
-
-        for (let category of categories) {
-            // === Special-case: Checks, Saves, Initiative ===
-            if (category === "checks" || category === "saves" || category === "init") {
-                await createBasicAbilities(characterId, category);
-                continue;
-            }
-
-            // === Normal category flow ===
-            if (!categoryMeta[category]) {
-                log(`TAM2024: Unknown category "${category}", skipping.`);
-                continue;
-            }
-
-            log(`TAM2024: Fetching items for category "${category}"`);
-            let items;
-            try {
-                items = await getItemsForCategory(characterId, category);
-            } catch (err) {
-                log(`TAM2024: ERROR fetching items for category "${category}": ${err}`);
-                continue;
-            }
-
-            log(`TAM2024: Found ${items.length} valid items for category "${category}"`);
-
-            for (let item of items) {
-                if (!item || !item.id) {
-                    log(`TAM2024: Skipping invalid item in category "${category}": ${JSON.stringify(item)}`);
-                    continue;
-                }
-
-                const macro = generateMacro(characterId, category, item);
-                if (!macro) {
-                    log(`TAM2024: Failed to generate macro for item ID "${item.id}" in category "${category}"`);
-                    continue;
-                }
-
-                log(`TAM2024: Creating token action "${macro.name}" with macro: ${macro.macro}`);
-                try {
-                    createTokenAction(characterId, macro.name, macro.macro);
-                } catch (err) {
-                    log(`TAM2024: ERROR creating token action "${macro.name}" for category "${category}": ${err}`);
-                }
-            }
-        }
+async function processToken(token, categories) {
+    const tokenObj = getObj("graphic", token._id);
+    if (!tokenObj) {
+        log(`TAM2024: Could not get token object for ID ${token._id}`);
+        return;
     }
 
+    const characterId = tokenObj.get("represents");
+    if (!characterId) {
+        log(`TAM2024: Token "${tokenObj.get("name")}" does not represent a character.`);
+        return;
+    }
+
+    log(`TAM2024: Processing token "${tokenObj.get("name")}" representing character ${characterId}`);
+
+    const catPromises = categories.map(async (category) => {
+        // === Special-case: Checks, Saves, Initiative ===
+        if (category === "checks" || category === "saves" || category === "init") {
+            await createBasicAbilities(characterId, category);
+            return;
+        }
+
+        // === Normal category flow ===
+        if (!categoryMeta[category]) {
+            log(`TAM2024: Unknown category "${category}", skipping.`);
+            return;
+        }
+
+        log(`TAM2024: Fetching items for category "${category}"`);
+        let items;
+        try {
+            items = await getItemsForCategory(characterId, category);
+        } catch (err) {
+            log(`TAM2024: ERROR fetching items for category "${category}": ${err}`);
+            return;
+        }
+
+        log(`TAM2024: Found ${items.length} valid items for category "${category}"`);
+
+        for (let item of items) {
+            if (!item || !item.id) {
+                log(`TAM2024: Skipping invalid item in category "${category}": ${JSON.stringify(item)}`);
+                continue;
+            }
+
+            const macro = generateMacro(characterId, category, item);
+            if (!macro) {
+                log(`TAM2024: Failed to generate macro for item ID "${item.id}" in category "${category}"`);
+                continue;
+            }
+
+            log(`TAM2024: Creating token action "${macro.name}" with macro: ${macro.macro}`);
+            try {
+                createTokenAction(characterId, macro.name, macro.macro);
+            } catch (err) {
+                log(`TAM2024: ERROR creating token action "${macro.name}" for category "${category}": ${err}`);
+            }
+        }
+    })
+    await Promise.all(catPromises);
+}
     // =======================
     // createBasicAbilities
     // =======================
@@ -189,6 +188,11 @@ async function createBasicAbilities(characterId, which) {
         return;
     }
 
+    function formatOption(label, attr, bonus) {
+        const sign = bonus >= 0 ? "+" : "";
+        return `| ${label} ${sign}${bonus}, %{selected&#124;${attr}&#125;`;
+    }
+
     if (which === "saves") {
         const saveOptionsRaw = [
             ["Strength", "npc_strength_save", bonuses.strength_bonus],
@@ -199,14 +203,8 @@ async function createBasicAbilities(characterId, which) {
             ["Charisma", "npc_charisma_save", bonuses.charisma_bonus]
         ];
 
-        const saveOptions = saveOptionsRaw.map(([label, attr, bonus]) => {
-            const sign = bonus >= 0 ? "+" : "";
-            return `| ${label} ${sign}${bonus}, %{selected&#124;${attr}&#125;`;
-        });
-
-        // Close the last line correctly
+        const saveOptions = saveOptionsRaw.map(([label, attr, bonus]) => formatOption(label, attr, bonus));
         saveOptions[saveOptions.length - 1] = saveOptions[saveOptions.length - 1].replace(/&#125;$/, "&#125;}");
-
         const saveAction = `?{Saving Throw?\n${saveOptions.join("\n")}`;
         createTokenAction(characterId, "Save", saveAction);
         return;
@@ -215,26 +213,19 @@ async function createBasicAbilities(characterId, which) {
     if (which === "checks") {
         const checkOptions = [];
 
-        // Abilities
         for (let [label, attr] of [["Strength","strength"],["Dexterity","dexterity"],["Constitution","constitution"],["Intelligence","intelligence"],["Wisdom","wisdom"],["Charisma","charisma"]]) {
-            const bonus = bonuses[`${attr}_bonus`] || 0;
-            const sign = bonus >= 0 ? "+" : "";
-            checkOptions.push(`| ${label} ${sign}${bonus}, %{selected&#124;${attr}&#125;`);
+            checkOptions.push(formatOption(label, attr, bonuses[`${attr}_bonus`] || 0));
         }
 
-        // Skills
         for (let skill of skillAttrs) {
             const bonus = bonuses[skill] || 0;
             const cleanName = skill.replace("_bonus","").replace(/_/g," ");
             const baseName = skill.replace("_bonus","");
             const labelName = cleanName.replace(/\b\w/g, c => c.toUpperCase());
-            const sign = bonus >= 0 ? "+" : "";
-            checkOptions.push(`| ${labelName} ${sign}${bonus}, %{selected&#124;${baseName}&#125;`);
+            checkOptions.push(formatOption(labelName, baseName, bonus));
         }
 
-        // Fix last line
         checkOptions[checkOptions.length - 1] = checkOptions[checkOptions.length - 1].replace(/&#125;$/, "&#125;}");
-
         const checkAction = `?{Check?\n${checkOptions.join("\n")}`;
         createTokenAction(characterId, "Check", checkAction);
         return;
@@ -273,40 +264,49 @@ async function createBasicAbilities(characterId, which) {
     // =======================
     // createTokenAction
     // =======================
-    function createTokenAction(characterId, actionName, macroString) {
-        if (!macroString) return;
-        const existing = findObjs({
-            _type: "ability",
+async function createTokenAction(characterId, actionName, macroString) {
+    if (!macroString) return;
+
+    const existing = findObjs({
+        _type: "ability",
+        characterid: characterId,
+        name: actionName
+    })[0];
+
+    const setTokenAction = (obj) => new Promise(resolve => {
+        setTimeout(() => {
+            obj.set({ istokenaction: true });
+            resolve();
+        }, 50);
+    });
+
+    if (existing) {
+        existing.set({ action: macroString });
+        await setTokenAction(existing);
+    } else {
+        const ability = createObj("ability", {
             characterid: characterId,
-            name: actionName
-        })[0];
-        if (existing) {
-            existing.set({ action: macroString });
-            setTimeout(() => existing.set({ istokenaction: true }), 50);
-        } else {
-            const ability = createObj("ability", {
-                characterid: characterId,
-                name: actionName,
-                action: macroString
-            });
-            setTimeout(() => ability.set({ istokenaction: true }), 50);
-        }
+            name: actionName,
+            action: macroString
+        });
+        await setTokenAction(ability);
     }
+}
 
     // =======================
     // processSelectedTokens
     // =======================
-    async function processSelectedTokens(selectedTokens, categories) {
-        if (!selectedTokens || selectedTokens.length === 0) return;
-        for (let token of selectedTokens) {
-            try {
-                await processToken(token, categories);
-            } catch (err) {
-                log(`TAM2024: ERROR processing token: ${err}`);
-            }
+async function processSelectedTokens(selectedTokens, categories) {
+    if (!selectedTokens || selectedTokens.length === 0) return;
+    const tokenPromises = selectedTokens.map(async token => {
+        try {
+            await processToken(token, categories);
+        } catch (err) {
+            log(`TAM2024: ERROR processing token: ${err}`);
         }
-    }
-
+    })
+    await Promise.all(tokenPromises);
+}
 
 // =======================
 // Delete Token Actions
@@ -314,25 +314,31 @@ async function createBasicAbilities(characterId, which) {
 async function deleteTokenActions(selectedTokens, protectPeriodEnding = true) {
     if (!selectedTokens || selectedTokens.length === 0) return;
 
-    for (let token of selectedTokens) {
+    const tokenPromises = selectedTokens.map(async token => {
         const tokenObj = getObj("graphic", token._id);
-        if (!tokenObj) continue;
+        if (!tokenObj) return;
 
         const characterId = tokenObj.get("represents");
-        if (!characterId) continue;
+        if (!characterId) return;
 
         const abilities = findObjs({ _type: "ability", characterid: characterId });
-        for (let ab of abilities) {
+
+        const abilityPromises = abilities.map(async ab => {
             const name = ab.get("name");
-            if (name.endsWith(".")) continue;
+            if (protectPeriodEnding && name.endsWith(".")) return;
+
             try {
-                ab.remove();
+                await ab.remove();
                 log(`TAM2024: Deleted token action "${name}" for character ${characterId}`);
             } catch (e) {
                 log(`TAM2024: Failed to delete token action "${name}" for character ${characterId}: ${e}`);
             }
-        }
-    }
+        });
+
+        await Promise.all(abilityPromises);
+    });
+
+    await Promise.all(tokenPromises);
 }
 
 
