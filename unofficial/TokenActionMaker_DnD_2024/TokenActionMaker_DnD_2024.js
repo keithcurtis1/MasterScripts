@@ -16,6 +16,7 @@ const TAM2024 = (() => {
         reaction:    { section: "npcreactions",    macroPrefix: "repeating_npcreaction",    macroType: "action",    label: "NPCReaction" },
         legendary:   { section: "npcactions-l",    macroPrefix: "repeating_npcaction-l",    macroType: "action",    label: "NPCLegendary" },
         mythic:      { section: "npcactions-m",    macroPrefix: "repeating_npcaction-m",    macroType: "action",    label: "NPCMythic" }
+    // some categories temporarily removed
     };
 
     // =======================
