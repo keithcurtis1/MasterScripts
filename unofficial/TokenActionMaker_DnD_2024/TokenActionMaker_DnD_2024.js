@@ -1,6 +1,6 @@
 /**
  * TAM2024 - Token Action Manager for D&D 5e (Beacon)
- * Author: keithcurtis with GPT5
+ * Author: [Your Name]
  * Date: 2025-09-02
  */
 
@@ -10,18 +10,54 @@ const TAM2024 = (() => {
     // =======================
     // Category & Macro Metadata
     // =======================
-    const categoryMeta = {
-        action:      { section: "npcactions",      macroPrefix: "repeating_npcaction",      macroType: "action",    label: "NPCAction" },
-        bonus:       { section: "npcbonusactions", macroPrefix: "repeating_npcbonusaction", macroType: "action",    label: "NPCBonus" },
-        reaction:    { section: "npcreactions",    macroPrefix: "repeating_npcreaction",    macroType: "action",    label: "NPCReaction" },
-        legendary:   { section: "npcactions-l",    macroPrefix: "repeating_npcaction-l",    macroType: "action",    label: "NPCLegendary" },
-        mythic:      { section: "npcactions-m",    macroPrefix: "repeating_npcaction-m",    macroType: "action",    label: "NPCMythic" }
-    };
+const categoryMeta = {
+    attacks: {
+        pc:  { section: "attacks",       macroPrefix: "repeating_attack",  macroType: "attack", label: "Attack" },
+        npc: null
+    },
+    trait: {
+        pc:  { section: "features",         macroPrefix: "repeating_trait",   macroType: "output", label: "Feature" },
+        npc: null
+    },
+//    proficiency: {
+//        pc:  { section: "proficiencies", macroPrefix: "repeating_proficiencies", macroType: "output", label: "Proficiency" },
+//        npc: null
+//    },
+    action: {
+        pc:  null,
+        npc: { section: "npcactions",    macroPrefix: "repeating_npcaction",   macroType: "action", label: "NPCAction" }
+    },
+    bonus: {
+        pc:  null,
+        npc: { section: "npcbonusactions", macroPrefix: "repeating_npcbonusaction", macroType: "action", label: "NPCBonus" }
+    },
+    reaction: {
+        pc:  null,
+        npc: { section: "npcreactions",  macroPrefix: "repeating_npcreaction", macroType: "action", label: "NPCReaction" }
+    },
+    legendary: {
+        pc:  null,
+        npc: { section: "npcactions-l",  macroPrefix: "repeating_npcaction-l", macroType: "action", label: "NPCLegendary" }
+    },
+    mythic: {
+        pc:  null,
+        npc: { section: "npcactions-m",  macroPrefix: "repeating_npcaction-m", macroType: "action", label: "NPCMythic" }
+    }
+};
+
 
     // =======================
     // Keyword Aliases
     // =======================
     const keywordAliases = {
+        attack: "attacks",
+        attacks: "attacks",
+        feature: "feature",
+        features: "feature",
+        trait: "feature",
+        traits: "trait",
+        proficiency: "proficiency",
+        proficiencies: "proficiency",
         action: "action",
         actions: "action",
         bonus: "bonus",
@@ -36,8 +72,15 @@ const TAM2024 = (() => {
         check: "checks",
         checks: "checks",
         init: "init",
-        initiative: "init"
+        initiative: "init",
+        spell: "spells",
+        spells: "spells"
     };
+
+
+
+
+
 
     // =======================
     // Utility
@@ -83,7 +126,7 @@ function sendMsg(msg, title, message) {
         const parts = msgContent.trim().split(/\s+/).slice(1);
         if (parts.length === 0) {
             // default: everything
-            return [...Object.keys(categoryMeta), "saves", "checks", "init"];
+            return [...Object.keys(categoryMeta), "saves", "checks", "init", "spells"];
         }
         const categories = new Set();
         parts.forEach(word => {
@@ -94,9 +137,62 @@ function sendMsg(msg, title, message) {
         return Array.from(categories);
     }
 
-    // =======================
-    // processToken
-    // =======================
+
+
+// =======================
+// get Spell IDs
+// =======================
+async function getSpells(characterId) {
+    const result = {};
+
+    // Cantrips
+    const cantripIds = await getComputed(characterId, "reporder_spell-cantrip") || [];
+    if (cantripIds.length) {
+        result[0] = cantripIds;
+    }
+
+    // Levels 1–9
+    for (let lvl = 1; lvl <= 9; lvl++) {
+        const ids = await getComputed(characterId, `reporder_spell-${lvl}`) || [];
+        if (ids.length) {
+            result[lvl] = ids;
+        }
+    }
+
+    return result; // object keyed by level → array of ids
+}
+
+
+// =======================
+// Builds the spell macro
+// =======================
+function buildSpellsMacro(spells) {
+    const sections = [];
+
+    for (const [lvl, ids] of Object.entries(spells)) {
+        const header = (lvl === "0") ? "**Cantrips**" : `**Level ${lvl}**`;
+
+        const buttons = ids.map((id, idx) => {
+            const label = (lvl === "0")
+                ? `Cantrip-${String(idx + 1).padStart(2, "0")}`
+                : `Spell-${lvl}-${String(idx + 1).padStart(2, "0")}`;
+            const prefix = (lvl === "0") ? "repeating_cantrip" : `repeating_spell-${lvl}`;
+            return `[${label}](~selected|${prefix}_${id}_output)`;
+        }).join("\n");
+
+        sections.push(`${header}\n${buttons}`);
+    }
+
+    return `&{template:default} {{name=Spells}} {{=${sections.join("\n\n")}}}`;
+}
+
+
+
+
+
+// =======================
+// processToken (fixed NPC/PC detection + passes meta through)
+// =======================
 async function processToken(token, categories) {
     const tokenObj = getObj("graphic", token._id);
     if (!tokenObj) {
@@ -112,6 +208,23 @@ async function processToken(token, categories) {
 
     log(`TAM2024: Processing token "${tokenObj.get("name")}" representing character ${characterId}`);
 
+    // --- Determine if this is an NPC or PC (async) ---
+    let npcAttrRaw = "";
+    try {
+        npcAttrRaw = await getSheetItem(characterId, "npc");
+    } catch (err) {
+        log(`TAM2024: ERROR fetching "npc" attribute for character ${characterId}: ${err}`);
+    }
+
+    const normalized = String(npcAttrRaw ?? "").toLowerCase().trim();
+    // treat "on", "1", "true" as PC; everything else -> NPC
+    const isPc = (normalized === "on" || normalized === "1" || normalized === "true");
+    const isNpc = !isPc;
+
+    log(`TAM2024: npc attribute raw="${npcAttrRaw}", normalized="${normalized}" => ${isNpc ? "NPC" : "PC"}`);
+
+    const type = isNpc ? "npc" : "pc";
+
     const catPromises = categories.map(async (category) => {
         // === Special-case: Checks, Saves, Initiative ===
         if (category === "checks" || category === "saves" || category === "init") {
@@ -119,16 +232,35 @@ async function processToken(token, categories) {
             return;
         }
 
+        // === Spells handling ===
+if (category === "spells") {
+    try {
+        const spells = await getSpells(characterId); 
+        if (Object.keys(spells).length === 0) {
+            log(`TAM2024: No spells found for character ${characterId}`);
+            return;
+        }
+        const macro = buildSpellsMacro(spells);
+        log(`TAM2024: Creating Spells token action with macro:\n${macro}`);
+        await createTokenAction(characterId, "Spells", macro);
+        log(`TAM2024: Spells token action created for character ${characterId}`);
+    } catch (err) {
+        log(`TAM2024: ERROR building Spells for ${characterId}: ${err}`);
+    }
+    return;
+}
+
         // === Normal category flow ===
-        if (!categoryMeta[category]) {
-            log(`TAM2024: Unknown category "${category}", skipping.`);
+        const meta = categoryMeta[category] ? categoryMeta[category][type] : null;
+        if (!meta) {
+            log(`TAM2024: Skipping category "${category}" for ${isNpc ? "NPC" : "PC"}`);
             return;
         }
 
-        log(`TAM2024: Fetching items for category "${category}"`);
+        log(`TAM2024: Fetching items for category "${category}" (using section "${meta.section}")`);
         let items;
         try {
-            items = await getItemsForCategory(characterId, category);
+            items = await getItemsForCategory(characterId, category, meta);
         } catch (err) {
             log(`TAM2024: ERROR fetching items for category "${category}": ${err}`);
             return;
@@ -142,7 +274,7 @@ async function processToken(token, categories) {
                 continue;
             }
 
-            const macro = generateMacro(characterId, category, item);
+            const macro = generateMacro(characterId, category, item, meta);
             if (!macro) {
                 log(`TAM2024: Failed to generate macro for item ID "${item.id}" in category "${category}"`);
                 continue;
@@ -150,14 +282,17 @@ async function processToken(token, categories) {
 
             log(`TAM2024: Creating token action "${macro.name}" with macro: ${macro.macro}`);
             try {
-                createTokenAction(characterId, macro.name, macro.macro);
+                await createTokenAction(characterId, macro.name, macro.macro);
             } catch (err) {
                 log(`TAM2024: ERROR creating token action "${macro.name}" for category "${category}": ${err}`);
             }
         }
-    })
+    });
+
     await Promise.all(catPromises);
 }
+
+
     // =======================
     // createBasicAbilities
     // =======================
@@ -174,14 +309,16 @@ async function createBasicAbilities(characterId, which) {
         "sleight_of_hand_bonus","stealth_bonus","survival_bonus"
     ];
 
-    const bonuses = {};
-    for (let attr of [...abilityAttrs, ...skillAttrs]) {
-        try {
-            bonuses[attr] = parseInt(await getSheetItem(characterId, attr)) || 0;
-        } catch {
-            bonuses[attr] = 0;
-        }
+const bonuses = {};
+for await (const [attr, val] of [...abilityAttrs, ...skillAttrs]
+    .map(async x => [x, await getSheetItem(characterId, x).catch(_ => 0)])) {
+    try {
+        bonuses[attr] = parseInt(val) || 0;
+    } catch {
+        bonuses[attr] = 0;
     }
+}
+
 
     if (which === "init") {
         createTokenAction(characterId, "Init", "%{selected|initiative}");
@@ -232,34 +369,61 @@ async function createBasicAbilities(characterId, which) {
     }
 }
 
-    // =======================
-    // getItemsForCategory
-    // =======================
-    async function getItemsForCategory(characterId, category) {
-        const meta = categoryMeta[category];
-        if (!meta) return [];
-        const ids = await getComputed(characterId, `reporder_${meta.section}`);
-        if (!ids || !ids.length) return [];
-        const labelBase = meta.label || category.charAt(0).toUpperCase() + category.slice(1);
-        return ids
-            .filter(id => !!id)
-            .map((id, index) => {
-                const paddedIndex = String(index + 1).padStart(2, "0");
-                return { id, name: `${labelBase}-${paddedIndex}` };
-            });
-    }
+// =======================
+// getItemsForCategory (expects meta passed in from processToken)
+// =======================
+async function getItemsForCategory(characterId, category, meta) {
+    if (!meta) return [];
+    const ids = await getComputed(characterId, `reporder_${meta.section}`);
+    if (!ids || !ids.length) return [];
+    const labelBase = meta.label || category.charAt(0).toUpperCase() + category.slice(1);
+    return ids
+        .filter(id => !!id)
+        .map((id, index) => {
+            const paddedIndex = String(index + 1).padStart(2, "0");
+            return { id, name: `${labelBase}-${paddedIndex}` };
+        });
+}
+
 
     // =======================
     // generateMacro
     // =======================
-    function generateMacro(characterId, category, item) {
-        const meta = categoryMeta[category];
-        if (!meta) return null;
-        return {
-            name: item.name,
-            macro: `%{${characterId}|${meta.macroPrefix}:${item.id}:${meta.macroType}}`
-        };
+// =======================
+// generateMacro
+// =======================
+// =======================
+// generateMacro (accepts optional meta)
+// =======================
+function generateMacro(characterId, category, item, meta) {
+    try {
+        // If caller passed a resolved meta (pc/npc specific), use it; otherwise derive one.
+        if (!meta) {
+            const cm = categoryMeta[category];
+            if (!cm) return null;
+            // try to pick a sensible default (pc if available, else npc, else raw)
+            meta = cm.pc || cm.npc || cm;
+        }
+
+        if (!meta || !meta.macroPrefix || !meta.macroType) {
+            log(`TAM2024: generateMacro skipping: invalid meta for category "${category}"`);
+            return null;
+        }
+
+        if (!item || !item.id || !characterId) {
+            log(`TAM2024: generateMacro skipping: missing characterId/item for category "${category}"`);
+            return null;
+        }
+
+        const macroString = `%{${characterId}|${meta.macroPrefix}:${item.id}:${meta.macroType}}`;
+        log(`TAM2024: generateMacro - category "${category}", item ID "${item.id}", macro: ${macroString}`);
+
+        return { name: item.name, macro: macroString };
+    } catch (e) {
+        log(`TAM2024: Error in generateMacro for category "${category}", item: ${JSON.stringify(item)}: ${e}`);
+        return null;
     }
+}
 
     // =======================
     // createTokenAction
@@ -296,18 +460,19 @@ async function createTokenAction(characterId, actionName, macroString) {
     // =======================
     // processSelectedTokens
     // =======================
-async function processSelectedTokens(selectedTokens, categories) {
-    if (!selectedTokens || selectedTokens.length === 0) return;
-    const tokenPromises = selectedTokens.map(async token => {
-        try {
-            await processToken(token, categories);
-        } catch (err) {
-            log(`TAM2024: ERROR processing token: ${err}`);
+    async function processSelectedTokens(selectedTokens, categories) {
+        if (!selectedTokens || selectedTokens.length === 0) return;
+        for (let token of selectedTokens) {
+            try {
+                await processToken(token, categories);
+            } catch (err) {
+                log(`TAM2024: ERROR processing token: ${err}`);
+            }
         }
-    })
-    await Promise.all(tokenPromises);
-}
-
+    }
+    
+    
+    
 // =======================
 // Delete Token Actions
 // =======================
