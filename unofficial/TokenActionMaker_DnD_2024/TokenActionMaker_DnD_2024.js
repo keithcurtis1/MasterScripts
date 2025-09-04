@@ -166,7 +166,7 @@ async function getSpells(characterId) {
 // =======================
 // Builds the spell macro
 // =======================
-function buildSpellsMacro(spells) {
+function buildSpellsMacro(spells, characterName) {
     const sections = [];
 
     for (const [lvl, ids] of Object.entries(spells)) {
@@ -177,13 +177,17 @@ function buildSpellsMacro(spells) {
                 ? `Cantrip-${String(idx + 1).padStart(2, "0")}`
                 : `Spell-${lvl}-${String(idx + 1).padStart(2, "0")}`;
             const prefix = (lvl === "0") ? "repeating_cantrip" : `repeating_spell-${lvl}`;
-            return `[${label}](~selected|${prefix}_${id}_output)`;
+            return `[${label}](~selected|${prefix}_${id}_spell)`;
         }).join("\n");
 
         sections.push(`${header}\n${buttons}`);
     }
 
-    return `&{template:default} {{name=Spells}} {{=${sections.join("\n\n")}}}`;
+    const title = `${characterName} Spells`;
+    const template = `&{template:default} {{name=${title}}} {{=${sections.join("\n\n")}}}`;
+
+    // Wrap in whisper to the selected character
+    return `/w "@{selected|character_name}" ${template}`;
 }
 
 
@@ -240,7 +244,11 @@ if (category === "spells") {
             log(`TAM2024: No spells found for character ${characterId}`);
             return;
         }
-        const macro = buildSpellsMacro(spells);
+
+        const charObj = getObj("character", characterId);
+        const charName = charObj ? charObj.get("name") : "Character";
+
+        const macro = buildSpellsMacro(spells, charName);
         log(`TAM2024: Creating Spells token action with macro:\n${macro}`);
         await createTokenAction(characterId, "Spells", macro);
         log(`TAM2024: Spells token action created for character ${characterId}`);
