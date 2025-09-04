@@ -1,6 +1,6 @@
 /**
  * TAM2024 - Token Action Manager for D&D 5e (Beacon)
- * Author: [Your Name]
+ * Author: Keith Curtis
  * Date: 2025-09-02
  */
 
@@ -61,7 +61,6 @@ const categoryMeta = {
         action: "action",
         actions: "action",
         bonus: "bonus",
-        bonusaction: "bonus",
         bonusactions: "bonus",
         reaction: "reaction",
         reactions: "reaction",
@@ -177,14 +176,14 @@ function buildSpellsMacro(spells, characterName) {
                 ? `Cantrip-${String(idx + 1).padStart(2, "0")}`
                 : `Spell-${lvl}-${String(idx + 1).padStart(2, "0")}`;
             const prefix = (lvl === "0") ? "repeating_cantrip" : `repeating_spell-${lvl}`;
-            return `[${label}](~selected|${prefix}_${id}_spell)`;
+            return `[ⓘ](~selected|${prefix}_${id}_output) [${label}](~selected|${prefix}_${id}_spell)`;
         }).join("\n");
 
         sections.push(`${header}\n${buttons}`);
     }
 
     const title = `${characterName} Spells`;
-    const template = `&{template:default} {{name=${title}}} {{=${sections.join("\n\n")}}}`;
+    const template = `&{template:default} {{name=${title}}} {{=${sections.join("\n")}}}`;
 
     // Wrap in whisper to the selected character
     return `/w "@{selected|character_name}" ${template}`;
