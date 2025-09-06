@@ -104,20 +104,34 @@ const TAM2024 = (() => {
         sendChat("TAM2024", `/w ${playerName} ${chatString}`);
     }
 
-    const TAM_HELP = `Creates token action macros for the selected token’s character sheet. Works only with the official D&D 5e (2024) Roll20 sheet.<br>
+const TAM_HELP = `Creates token action macros for the selected token’s character sheet. Works only with the official D&D 5e (2024) Roll20 sheet.<br>
 <b>USAGE:</b>&#10;
-<div style="margin: -15px 0px 0px 15px!important;">
-<p><code>!tam</code> Create all standard token actions
-<p><code>!tam name</code> Same as above, but uses the character name instead of the character id.
-<p><code>!tam [categories]</code> Create only for the specified categories.
-<p><code>!tam [categories] name</code> Same as above, but using the character name.
-<p><code>!tamdelete</code> Deletes all unprotected token actions.
-<p><code>!tamdeleteall</code> Deletes ALL token actions, regardless of protection.
-<p><code>!tam help</code> Show this help message.
-</div>`;
-
-
-
+<code>!tam</code> — Create all standard token actions.&#10;
+<code>!tam name</code> — Same as above, but uses the character name instead of the character id in each macro (useful when moving a character to a new game).&#10;
+<code>!tam [categories]</code> — Create token actions only for the specified categories.&#10;
+<code>!tam [categories] name</code> — Same as above, but using the character name instead of the character id in each macro.&#10;
+<code>!tamdelete/</code> — Deletes all unprotected token actions. Protect macros by putting a period after the name.&#10;
+<code>!tamdeleteall</code> — Deletes ALL macros, regardless of if they are protected.&#10;
+<code>!tam help</code> — Show this help message.<br>
+<b>CATEGORIES:</b>&#10;
+if a category does not apply to the tye of character, it will be skipped. Example: NPCs have Actions, not Attacks. Singular or plural for each keyword are acepted.&#10;
+<b>attacks</b>: PC attacks.&#10;
+<b>actions</b>: NPC actions.&#10;
+<b>spells</b>: Spellcasting chat menu.&#10;
+<b>bonus</b>: NPC Bonus actions.&#10;
+<b>reactions</b>: NPC Reactions.&#10;
+<b>legendary</b>: NPC legendary actions.&#10;
+<b>mythic</b>: NPC Mythic actions.&#10;
+<b>checks</b>: Ability and skill checks.&#10;
+<b>saves</b>: Saving throws.&#10;
+<b>init</b>: Initiative roll.<br>
+<b>EXAMPLES:</b>&#10;
+<code>!tam</code> — Full set of NPC or PC macros.&#10;
+<code>!tam attacks spells</code> — Only attacks(PC) and spells.&#10;
+<code>!tam checks name</code> — All ability and skill checks using the character name in the macro code.<br>
+<b>NOTES:</b>&#10;
+Run the command with the token(s) selected.&#10;
+Macros are created as token actions, visible only when that token is selected.`;
 
 
     // =======================
