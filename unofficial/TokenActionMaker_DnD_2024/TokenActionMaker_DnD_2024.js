@@ -104,6 +104,7 @@ const TAM2024 = (() => {
         sendChat("TAM2024", `/w ${playerName} ${chatString}`);
     }
 
+
 const TAM_HELP = `Creates token action macros for the selected token’s character sheet. Works only with the official D&D 5e (2024) Roll20 sheet.<br>
 <b>USAGE:</b>&#10;
 <code>!tam</code> — Create all standard token actions.&#10;
@@ -132,6 +133,8 @@ if a category does not apply to the tye of character, it will be skipped. Exampl
 <b>NOTES:</b>&#10;
 Run the command with the token(s) selected.&#10;
 Macros are created as token actions, visible only when that token is selected.`;
+
+
 
 
     // =======================
@@ -251,21 +254,31 @@ function abbreviateName(name) {
     // =======================
     // Get Items for Category (with names)
     // =======================
-    async function getItemsForCategory(characterId, category, meta) {
-        if (!meta) return [];
-        const ids = await getComputed(characterId, `reporder_${meta.section}`);
-        if (!ids || !ids.length) return [];
-        const results = [];
-        for (let id of ids) {
-            try {
-                const name = await getSheetItem(characterId, `${meta.macroPrefix}_${id}_name`);
-                if (name) results.push({ id, name });
-            } catch {
-                // skip if no name
+async function getItemsForCategory(characterId, category, meta) {
+    if (!meta) return [];
+
+    const ids = await getComputed(characterId, `reporder_${meta.section}`);
+    if (!ids || !ids.length) return [];
+
+    const results = [];
+    for (let id of ids) {
+        try {
+            let nameAttr = `${meta.macroPrefix}_${id}_name`;
+
+            // --- Roll20 sheet quirk: repeating_attack rows use _atkname instead of _name ---
+            if (meta.macroPrefix === "repeating_attack") {
+                nameAttr = `${meta.macroPrefix}_${id}_atkname`;
             }
+
+            const name = await getSheetItem(characterId, nameAttr);
+            if (name) results.push({ id, name });
+        } catch {
+            // skip if no name
         }
-        return results;
     }
+    return results;
+}
+
 
     // =======================
     // Generate Macro
