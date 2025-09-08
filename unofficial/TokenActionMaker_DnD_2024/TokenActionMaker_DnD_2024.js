@@ -23,32 +23,33 @@ const TAM2024 = (() => {
     // =======================
     const categoryMeta = {
         attacks: {
-            pc:  { section: "attacks",       macroPrefix: "repeating_attack",  macroType: "attack", label: "Attack" },
+            pc:  { section: "attacks",       macroPrefix: "repeating_attack",  macroType: "attack", label: "Attack" , namePrefix: "" },
             npc: null
         },
         trait: {
-            pc:  { section: "features",         macroPrefix: "repeating_trait",   macroType: "output", label: "Feature" },
-            npc: null
+            //pc:  null,
+            pc:  { section: "features",         macroPrefix: "repeating_trait",   macroType: "output", label: "Feature" , namePrefix: "" },
+            npc: { section: "features",         macroPrefix: "repeating_trait",   macroType: "output", label: "Feature" , namePrefix: "" }
         },
         action: {
             pc:  null,
-            npc: { section: "npcactions",    macroPrefix: "repeating_npcaction",   macroType: "action", label: "NPCAction" }
+            npc: { section: "npcactions",    macroPrefix: "repeating_npcaction",   macroType: "action", label: "NPCAction" , namePrefix: "" }
         },
         bonus: {
             pc:  null,
-            npc: { section: "npcbonusactions", macroPrefix: "repeating_npcbonusaction", macroType: "action", label: "NPCBonus" }
+            npc: { section: "npcbonusactions", macroPrefix: "repeating_npcbonusaction", macroType: "action", label: "NPCBonus", namePrefix: "_B."  }
         },
         reaction: {
             pc:  null,
-            npc: { section: "npcreactions",  macroPrefix: "repeating_npcreaction", macroType: "action", label: "NPCReaction" }
+            npc: { section: "npcreactions",  macroPrefix: "repeating_npcreaction", macroType: "action", label: "NPCReaction" , namePrefix: "_R." }
         },
         legendary: {
             pc:  null,
-            npc: { section: "npcactions-l",  macroPrefix: "repeating_npcaction-l", macroType: "action", label: "NPCLegendary" }
+            npc: { section: "npcactions-l",  macroPrefix: "repeating_npcaction-l", macroType: "action", label: "NPCLegendary" , namePrefix: "_L_" }
         },
         mythic: {
             pc:  null,
-            npc: { section: "npcactions-m",  macroPrefix: "repeating_npcaction-m", macroType: "action", label: "NPCMythic" }
+            npc: { section: "npcactions-m",  macroPrefix: "repeating_npcaction-m", macroType: "action", label: "NPCMythic" , namePrefix: "_M_" }
         }
     };
 
@@ -95,14 +96,14 @@ const TAM2024 = (() => {
         return true;
     }
     
-    function sendMsg(msg, title, message) {
-        if (!msg || !msg.playerid) return;
-        const playerId = msg.playerid;
-        const playerObj = getObj("player", playerId);
-        const playerName = playerObj ? `"${playerObj.get("displayname")}"` : `"GM"`;
-        const chatString = `&{template:default} {{name=${title}}} {{=${message}}}`;
-        sendChat("TAM2024", `/w ${playerName} ${chatString}`);
-    }
+function sendMsg(msg, title, message) {
+    if (!msg || !msg.playerid) return;
+    const playerId = msg.playerid;
+    const playerObj = getObj("player", playerId);
+    const playerName = playerObj ? `"${playerObj.get("displayname")}"` : `"GM"`;
+    const chatString = `&{template:default} {{name=${title}}} {{=${message}}}`;
+    sendChat("TAM2024", `/w ${playerName} ${chatString}`, null, {noarchive:true});
+}
 
 
 const TAM_HELP = `Creates token action macros for the selected token’s character sheet. Works only with the official D&D 5e (2024) Roll20 sheet.<br>
@@ -132,7 +133,11 @@ if a category does not apply to the tye of character, it will be skipped. Exampl
 <code>!tam checks name</code> — All ability and skill checks using the character name in the macro code.<br>
 <b>NOTES:</b>&#10;
 Run the command with the token(s) selected.&#10;
-Macros are created as token actions, visible only when that token is selected.`;
+Macros are created as token actions, visible only when that token is selected.&#10;
+Name Prefixes are used to group action types on NPCs:&#10;
+&nbsp;.B.Bonus Actions, .R.Reactions,&#10;
+&nbsp;.L.Legendary, and .M.Mythic.&#10;
+Checks, Saves and Init are preceded by a double period for consistent placement at the beginning of the list.`;
 
 
 
@@ -143,23 +148,51 @@ Macros are created as token actions, visible only when that token is selected.`;
 function abbreviateName(name) {
     if (!name) return "";
 
-    name = name.replace(" (One-Handed)", "-1H");
-    name = name.replace(" (Two-Handed)", "-2H");
-    name = name.replace(" (Melee; One-Handed)", "-1Hm");
-    name = name.replace(" (Melee; Two-Handed)", "-2Hm");
-    name = name.replace(" (Psionics)", "(Psi)");
-    name = name.replace(" (Melee)", "-m");
-    name = name.replace(" (Ranged)", "-r");
-    name = name.replace("swarm has more than half HP", "HP>Half");
-    name = name.replace("swarm has half HP or less", "HP<=Half");
-    name = name.replace(/\s\(Recharge(.*)Short or Long Rest\)/, "-(R Short/Long)");
-    name = name.replace(/\s\(Recharge(.*)Short Rest\)/, "-(R Short)");
-    name = name.replace(/\s\(Recharge(?=.*Long Rest)(?:(?!Short).)*\)/, "-(R Long)");
-    name = name.replace(/\sVariant\)/, ")");
-    name = name.replace(/\s\(Recharge\s(.*)\)/, "-(R$1)");
-    name = name.replace(/\s\(Costs\s(.*)\sActions\)/, "-($1a)");
+    // Weapon and attack type abbreviations
+    name = name.replace(" (One-Handed)", "-1H");            // e.g., "Sword (One-Handed)" → "Sword-1H"
+    name = name.replace(" (Two-Handed)", "-2H");            // e.g., "Greatsword (Two-Handed)" → "Greatsword-2H"
+    name = name.replace(" (Melee; One-Handed)", "-1Hm");    // e.g., "Dagger (Melee; One-Handed)" → "Dagger-1Hm"
+    name = name.replace(" (Melee; Two-Handed)", "-2Hm");    // e.g., "Polearm (Melee; Two-Handed)" → "Polearm-2Hm"
+    name = name.replace(" (Psionics)", "—Psi");            // e.g., "Mind Blast (Psionics)" → "Mind Blast—Psi"
+    name = name.replace(" (Melee)", "-m");                 // e.g., "Punch (Melee)" → "Punch-m"
+    name = name.replace(" (Ranged)", "-r");                // e.g., "Bow (Ranged)" → "Bow-r"
+
+    // HP status phrases
+    name = name.replace("swarm has more than half HP", "HP>Half"); // e.g., "swarm has more than half HP" → "HP>Half"
+    name = name.replace("swarm has half HP or less", "HP<=Half");  // e.g., "swarm has half HP or less" → "HP<=Half"
+
+    // Special recharge handling (merged into one statement)
+    name = name.replace(/\s?\(Recharges?(.*?)\)|\bRecharges?\s(\d+-\d+)/i,
+        (match, parenRecharge, plainRecharge) => {
+            if (parenRecharge !== undefined) {
+                const text = parenRecharge.trim();
+                if (!text) return "—R";                  // fallback for empty parentheses
+                if (/Short or Long Rest/i.test(text)) return "—R Short/Long";
+                if (/Short Rest/i.test(text)) return "—R Short";
+                if (/Long Rest/i.test(text)) return "—R Long";
+                return "—R " + text;                      // any other special recharge
+            }
+            if (plainRecharge) return "R" + plainRecharge;     // e.g., "Recharge 5-6" → "R5-6"
+            return match;
+        });
+
+    // Other action abbreviations
+    name = name.replace(/\s?\((\d+)\/Day\)/i, "$1/d");          // e.g., "(3/Day)" → "3/d"
+    name = name.replace(/\s\(Costs\s(.*)\sActions\)/, "—$1a");  // e.g., "(Costs 2 Actions)" → "—2a"
+    name = name.replace(/\sVariant\)/, "—");                     // e.g., "Ability (Variant)" → "Ability—"
+
+    // General cleanup
+    name = name.replace(/\s?\(/g, "—");  // any "(" or " (" → "—"
+    name = name.replace(/\)/g, "");      // any ")" → ""
+    name = name.replace(/\.+$/, "");  // removes one or more periods at the end
+    
+    // Catch for ill-formed names
+    name = name.replace(/.*template:error.*/, "Token Action " + (Math.floor(Math.random() * 100) + 1));
+
     return name;
 }
+
+
 
 
 
@@ -268,10 +301,22 @@ async function getItemsForCategory(characterId, category, meta) {
             // --- Roll20 sheet quirk: repeating_attack rows use _atkname instead of _name ---
             if (meta.macroPrefix === "repeating_attack") {
                 nameAttr = `${meta.macroPrefix}_${id}_atkname`;
+                //nameAttr = `repeating_attack_${id}_atkname`; //trying different prefixes
+                log ("Raw nameAttr = " + nameAttr);
             }
 
-            const name = await getSheetItem(characterId, nameAttr);
+            // --- Roll20 sheet quirk: repeating_trait rows use repeating_traits instead of _name ---
+            if (meta.macroPrefix === "repeating_trait") {
+                nameAttr = `repeating_traits_${id}_name`;
+                //nameAttr = `repeating_attack_${id}_atkname`; //trying different prefixes
+                log("Raw nameAttr = " + nameAttr);
+            }
+
+            let name = await getSheetItem(characterId, nameAttr);
+            if (name) {name = meta.namePrefix + name};
             if (name) results.push({ id, name });
+            log ("Raw name = " + name);
+
         } catch {
             // skip if no name
         }
@@ -485,13 +530,13 @@ on("chat:message", async function(msg) {
             deletedTokens.push(name);
         }
         await deleteTokenActions(msg.selected, true);
-        sendMsg(msg, "Token Action Manager", `Token actions deleted (except protected macros whose name ends in a period) for ${deletedTokens.join(" <br> ")}.`);
+        sendMsg(msg, "Token Actions Deleted", `Token actions deleted (except protected macros whose name ends in a period) for <br>${deletedTokens.join(" <br> ")}.`);
         return;
     }
 
     // ---- Ask for confirmation before deleting all token actions ----
     if (cmd === "!tamdeleteall") {
-        const buttonMessage = `Are you sure you wish to delete ALL token actions on the selected characters? This cannot be undone.<BR>[Delete ALL](!tamdeleteallconfirmed) | [Cancel](!tamcancel)`;
+        const buttonMessage = `Are you sure you wish to delete ALL token actions on the selected characters? This cannot be undone.<br>[Delete ALL](!tamdeleteallconfirmed) | [Cancel](!tamcancel)`;
         sendMsg(msg, "Confirmation Required", buttonMessage);
         return;
     }
@@ -504,7 +549,7 @@ on("chat:message", async function(msg) {
             deletedTokens.push(name);
         }
         await deleteTokenActions(msg.selected, false);
-        sendMsg(msg, "All Token Actions Deleted", `All token actions deleted for: ${deletedTokens.join("<br>")}.`);
+        sendMsg(msg, "All Token Actions Deleted", `All token actions deleted for:<br>${deletedTokens.join("<br>")}.`);
         return;
     }
 
@@ -543,7 +588,7 @@ on("chat:message", async function(msg) {
         await processToken(token, categories, useNames);
     }
 
-    sendMsg(msg, "Token Actions Created", `Finished creating token actions for: ${processedTokens.join("&#10;")}.`);
+    sendMsg(msg, "Token Actions Created", `Finished creating token actions for:<br>${processedTokens.join("<br>")}.`);
 });
 
     return { parseTamCommand, processToken };
