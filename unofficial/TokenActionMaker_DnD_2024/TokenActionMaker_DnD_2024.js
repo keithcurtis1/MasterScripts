@@ -294,6 +294,8 @@ async function getItemsForCategory(characterId, category, meta) {
     if (!ids || !ids.length) return [];
 
     const results = [];
+    const sizeWords = ["tiny", "small", "medium", "large", "huge", "gargantuan"];
+
     for (let id of ids) {
         try {
             let nameAttr = `${meta.macroPrefix}_${id}_name`;
@@ -302,7 +304,7 @@ async function getItemsForCategory(characterId, category, meta) {
             if (meta.macroPrefix === "repeating_attack") {
                 nameAttr = `${meta.macroPrefix}_${id}_atkname`;
                 //nameAttr = `repeating_attack_${id}_atkname`; //trying different prefixes
-                log ("Raw nameAttr = " + nameAttr);
+                log("Raw nameAttr = " + nameAttr);
             }
 
             // --- Roll20 sheet quirk: repeating_trait rows use repeating_traits instead of _name ---
@@ -313,9 +315,18 @@ async function getItemsForCategory(characterId, category, meta) {
             }
 
             let name = await getSheetItem(characterId, nameAttr);
-            if (name) {name = meta.namePrefix + name};
-            if (name) results.push({ id, name });
-            log ("Raw name = " + name);
+            if (name) {
+                name = meta.namePrefix + name;
+
+                // --- Skip if the name is *exactly* a size word (case-insensitive) ---
+                if (sizeWords.includes(name.trim().toLowerCase())) {
+                    log(`TAM2024: Skipping size trait "${name}" for ${characterId}`);
+                    continue;
+                }
+
+                results.push({ id, name });
+            }
+            log("Raw name = " + name);
 
         } catch {
             // skip if no name
