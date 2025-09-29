@@ -196,7 +196,8 @@ Macros are created as token actions, visible only when that token is selected.&#
 Name Prefixes are used to group action types on NPCs:&#10;
 &nbsp;.B.Bonus Actions, .R.Reactions,&#10;
 &nbsp;.L.Legendary, and .M.Mythic.&#10;
-Checks, Saves and Init are preceded by a double period for consistent placement at the beginning of the list.`;
+Unless specified, Trait buttons are not created for PCs, to keep the token bar manageable.&#10;
+Checks, Saves and Init are preceded by a period for consistent placement at the beginning of the list.`;
 
 
 
