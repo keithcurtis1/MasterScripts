@@ -11,12 +11,22 @@ API_Meta.tab24 = {
     }
 }
 /**
- * tab2024 - Token Action Builder for D&D  2024 by Roll20 sheet (Beacon)
+ * tokenActionBuilder - Token Action Builder for D&D  2024 by Roll20 sheet (Beacon)
  * Author: Keith Curtis
  * Date: 2025-09-06
+ * Changelog:
+ * 1.0.0 Debut script
  */
+on('ready', () => {
+    const version = '1.0.0';
+    log(`-=> Token Action Builder v${version} loaded. Use !tam for D&D 2024 Beacon Sheet token actions. Type !tam help for instructions.`);
+});
 
-const tab2024 = (() => {
+ 
+ 
+ 
+
+const tokenActionBuilder = (() => {
     "use strict";
 
     // =======================
@@ -139,7 +149,7 @@ const tab2024 = (() => {
         const isExperimental = (typeof $20 !== "undefined");
         if (!isExperimental) {
             sendMsg(msg, "Sandbox Requirement", "This script requires the EXPERIMENTAL sandbox. Please visit your mods page to switch sandboxes.");
-            log("tab2024: Not running — requires EXPERIMENTAL sandbox.");
+            log("Token Action Builder: Not running — requires EXPERIMENTAL sandbox.");
             return false;
         }
         return true;
@@ -155,7 +165,7 @@ const tab2024 = (() => {
         const playerObj = getObj("player", playerId);
         const playerName = playerObj ? `"${playerObj.get("displayname")}"` : `"gm"`;
         const chatString = `&{template:default} {{name=${title}}} {{=${message}}}`;
-        sendChat("tab2024", `/w ${playerName} ${chatString}`, null, {
+        sendChat("Token Action Builder", `/w ${playerName} ${chatString}`, null, {
             noarchive: true
         });
     }
@@ -171,11 +181,11 @@ const tab2024 = (() => {
 <code>!tab name</code> — Same as above, but uses the character name instead of the character id in each macro (useful when moving a character to a new game).&#10;
 <code>!tab [categories]</code> — Create token actions only for the specified categories.&#10;
 <code>!tab [categories] name</code> — Same as above, but using the character name instead of the character id in each macro.&#10;
-<code>!tabdelete</code> — Deletes all unprotected token actions. Protect macros by putting a period after the name.&#10;
-<code>!tabdeleteall</code> — Deletes ALL macros, regardless of if they are protected.&#10;
+<code>!tab delete</code> — Deletes all unprotected token actions. Protect macros by putting a period after the name.&#10;
+<code>!tab deleteall</code> — Deletes ALL macros, regardless of if they are protected.&#10;
 <code>!tab help</code> — Show this help message.<br>
 <b>CATEGORIES:</b>&#10;
-if a category does not apply to the tye of character, it will be skipped. Example: NPCs have Actions, not Attacks. Singular or plural for each keyword are acepted.&#10;
+If a category does not apply to the tye of character, it will be skipped. Example: NPCs have Actions, not Attacks. Singular or plural for each keyword are acepted.&#10;
 <b>attacks</b>: PC attacks.&#10;
 <b>actions</b>: NPC actions.&#10;
 <b>spells</b>: Spellcasting chat menu.&#10;
@@ -194,8 +204,8 @@ if a category does not apply to the tye of character, it will be skipped. Exampl
 Run the command with the token(s) selected.&#10;
 Macros are created as token actions, visible only when that token is selected.&#10;
 Name Prefixes are used to group action types on NPCs:&#10;
-&nbsp;.B.Bonus Actions, .R.Reactions,&#10;
-&nbsp;.L.Legendary, and .M.Mythic.&#10;
+&nbsp;_B.Bonus Actions, _R.Reactions,&#10;
+&nbsp;_L.Legendary, and _M.Mythic.&#10;
 Unless specified, Trait buttons are not created for PCs, to keep the token bar manageable.&#10;
 Checks, Saves and Init are preceded by a period for consistent placement at the beginning of the list.`;
 
@@ -432,7 +442,7 @@ Checks, Saves and Init are preceded by a period for consistent placement at the 
 
                     // --- Skip if the name is *exactly* a size word (case-insensitive) ---
                     if (sizeWords.includes(name.trim().toLowerCase())) {
-                        log(`tab2024: Skipping size trait "${name}" for ${characterId}`);
+                        //log(`Token Action Builder: Skipping size trait "${name}" for ${characterId}`);
                         continue;
                     }
 
@@ -670,7 +680,7 @@ Checks, Saves and Init are preceded by a period for consistent placement at the 
     // =======================
     on("chat:message", async function(msg) {
         if (msg.type !== "api") return;
-        if (!msg.content.startsWith("!tab")) return;
+        if (!(msg.content === "!tab" || msg.content.startsWith("!tab "))) return;
         if (!ensureExperimentalMode(msg)) return;
 
         const cmd = msg.content.trim();
@@ -705,8 +715,9 @@ Checks, Saves and Init are preceded by a period for consistent placement at the 
             return;
         }
 
+
         // ---- Delete token actions (protected by period) ----
-        if (cmd === "!tabdelete") {
+        if (cmd === "!tab delete") {
             const deletedTokens = beaconTokens.map(t => getObj("graphic", t._id)?.get("name") || "Unknown");
             await deleteTokenActions(beaconTokens, true);
             sendMsg(msg, "Token Actions Deleted", `Token actions deleted (except protected macros whose name ends in a period) for <br>${deletedTokens.join(" <br> ")}.`);
@@ -717,14 +728,14 @@ Checks, Saves and Init are preceded by a period for consistent placement at the 
 
 
         // ---- Ask for confirmation before deleting all token actions ----
-        if (cmd === "!tabdeleteall") {
-            const buttonMessage = `Are you sure you wish to delete ALL token actions on the selected characters? This cannot be undone.<br>[Delete ALL](!tabdeleteallconfirmed) | [Cancel](!tabcancel)`;
+        if (cmd === "!tab deleteall") {
+            const buttonMessage = `Are you sure you wish to delete ALL token actions on the selected characters? This cannot be undone.<br>[Delete ALL](!tab deleteallconfirmed) | [Cancel](!tab cancel)`;
             sendMsg(msg, "Confirmation Required", buttonMessage);
             return;
         }
 
         // ---- Delete all token actions after confirmation ----
-        if (cmd === "!tabdeleteallconfirmed") {
+        if (cmd === "!tab deleteallconfirmed") {
             const deletedTokens = beaconTokens.map(t => getObj("graphic", t._id)?.get("name") || "Unknown");
             await deleteTokenActions(beaconTokens, false);
             sendMsg(msg, "All Token Actions Deleted", `All token actions deleted for:<br>${deletedTokens.join("<br>")}.`);
@@ -732,10 +743,29 @@ Checks, Saves and Init are preceded by a period for consistent placement at the 
         }
 
         // ---- Cancel deletion ----
-        if (cmd === "!tabcancel") {
+        if (cmd === "!tab cancel") {
             sendMsg(msg, "Deletion Canceled", "No token actions were deleted.");
             return;
         }
+
+
+        // ---- Validate keywords before proceeding ----
+        const args = cmd.split(/\s+/).slice(1); // everything after "!tab"
+        const validKeywords = Object.keys(keywordAliases);
+
+        const invalid = args.filter(arg => !validKeywords.includes(arg.toLowerCase()));
+
+        if (invalid.length > 0) {
+            sendMsg(
+                msg,
+                "Invalid Command",
+                `One or more keywords used in the last command were invalid: ${invalid.map(x => `<code>${x}</code>`).join(", ")} <br>Type <code>!tab help</code> for a list of valid keywords.`
+            );
+            return;
+        }
+
+
+
 
         // ---- Standard !tab command to create token actions ----
         const parsed = parsetabCommand(msg.content);
@@ -769,7 +799,7 @@ Checks, Saves and Init are preceded by a period for consistent placement at the 
                     ok: true
                 };
             } catch (err) {
-                log(`tab2024: ERROR processing token "${tokenName}": ${err}`);
+                log(`Token Action Builder: ERROR processing token "${tokenName}": ${err}`);
                 return {
                     name: tokenName,
                     ok: false,
