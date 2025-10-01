@@ -267,55 +267,60 @@ Checks, Saves and Init are preceded by a period for consistent placement at the 
 
 
 
-    // =======================
-    // Abbreviate Names
-    // =======================
-    function abbreviateName(name) {
-        if (!name) return "";
+// =======================
+// Abbreviate Names
+// =======================
+function abbreviateName(name) {
+    if (!name) return "";
 
-        // Weapon and attack type abbreviations
-        name = name.replace(" (One-Handed)", "-1H"); // e.g., "Sword (One-Handed)" → "Sword-1H"
-        name = name.replace(" (Two-Handed)", "-2H"); // e.g., "Greatsword (Two-Handed)" → "Greatsword-2H"
-        name = name.replace(" (Melee; One-Handed)", "-1Hm"); // e.g., "Dagger (Melee; One-Handed)" → "Dagger-1Hm"
-        name = name.replace(" (Melee; Two-Handed)", "-2Hm"); // e.g., "Polearm (Melee; Two-Handed)" → "Polearm-2Hm"
-        name = name.replace(" (Psionics)", "—Psi"); // e.g., "Mind Blast (Psionics)" → "Mind Blast—Psi"
-        name = name.replace(" (Melee)", "-m"); // e.g., "Punch (Melee)" → "Punch-m"
-        name = name.replace(" (Ranged)", "-r"); // e.g., "Bow (Ranged)" → "Bow-r"
+    // Weapon and attack type abbreviations
+    name = name.replace(/ \(One-Handed\)/i, "-1H");        // e.g., "Sword (One-Handed)" → "Sword-1H"
+    name = name.replace(/ \(Two-Handed\)/i, "-2H");        // e.g., "Greatsword (Two-Handed)" → "Greatsword-2H"
+    name = name.replace(/ \(Melee; One-Handed\)/i, "-1Hm");// e.g., "Dagger (Melee; One-Handed)" → "Dagger-1Hm"
+    name = name.replace(/ \(Melee; Two-Handed\)/i, "-2Hm");// e.g., "Polearm (Melee; Two-Handed)" → "Polearm-2Hm"
+    name = name.replace(/Thrown/i, "Thrn");                // e.g., "Thrown Weapon" → "Thrn Weapon"
+    name = name.replace(/Finesse/i, "Fnss");               // e.g., "Finesse Attack" → "Fnss Attack"
+    name = name.replace(/Dexterous/i, "Dex");              // e.g., "Dexterous Strike" → "Dex Strike"
+    name = name.replace(/Open Hand Technique/i, "Open Hand"); // e.g., "Open Hand Technique" → "Open Hand"
+    name = name.replace(/ \(Psionics\)/i, "—Psi");         // e.g., "Mind Blast (Psionics)" → "Mind Blast—Psi"
+    name = name.replace(/ \(Melee\)/i, "-m");              // e.g., "Punch (Melee)" → "Punch-m"
+    name = name.replace(/ \(Ranged\)/i, "-r");             // e.g., "Bow (Ranged)" → "Bow-r"
 
-        // HP status phrases
-        name = name.replace("swarm has more than half HP", "HP>Half"); // e.g., "swarm has more than half HP" → "HP>Half"
-        name = name.replace("swarm has half HP or less", "HP<=Half"); // e.g., "swarm has half HP or less" → "HP<=Half"
+    // HP status phrases
+    name = name.replace(/swarm has more than half hp/i, "HP>Half"); // e.g., "swarm has more than half HP" → "HP>Half"
+    name = name.replace(/swarm has half hp or less/i, "HP<=Half");  // e.g., "swarm has half HP or less" → "HP<=Half"
 
-        // Special recharge handling (merged into one statement)
-        name = name.replace(/\s?\(Recharges?(.*?)\)|\bRecharges?\s(\d+-\d+)/i,
-            (match, parenRecharge, plainRecharge) => {
-                if (parenRecharge !== undefined) {
-                    const text = parenRecharge.trim();
-                    if (!text) return "—R"; // fallback for empty parentheses
-                    if (/Short or Long Rest/i.test(text)) return "—R Short/Long";
-                    if (/Short Rest/i.test(text)) return "—R Short";
-                    if (/Long Rest/i.test(text)) return "—R Long";
-                    return "—R " + text; // any other special recharge
-                }
-                if (plainRecharge) return "R" + plainRecharge; // e.g., "Recharge 5-6" → "R5-6"
-                return match;
-            });
+    // Special recharge handling (merged into one statement)
+    name = name.replace(/\s?\(Recharges?(.*?)\)|\bRecharges?\s(\d+-\d+)/i,
+        (match, parenRecharge, plainRecharge) => {
+            if (parenRecharge !== undefined) {
+                const text = parenRecharge.trim();
+                if (!text) return "—R"; // fallback for empty parentheses
+                if (/Short or Long Rest/i.test(text)) return "—R Short/Long";
+                if (/Short Rest/i.test(text)) return "—R Short";
+                if (/Long Rest/i.test(text)) return "—R Long";
+                return "—R " + text; // any other special recharge (e.g., "at Dawn", "in Moonlight")
+            }
+            if (plainRecharge) return "R" + plainRecharge; // e.g., "Recharge 5-6" → "R5-6"
+            return match;
+        });
 
-        // Other action abbreviations
-        name = name.replace(/\s?\((\d+)\/Day\)/i, "$1/d"); // e.g., "(3/Day)" → "3/d"
-        name = name.replace(/\s\(Costs\s(.*)\sActions\)/, "—$1a"); // e.g., "(Costs 2 Actions)" → "—2a"
-        name = name.replace(/\sVariant\)/, "—"); // e.g., "Ability (Variant)" → "Ability—"
+    // Other action abbreviations
+    name = name.replace(/\s?\((\d+)\/Day\)/i, "$1/d");       // e.g., "(3/Day)" → "3/d"
+    name = name.replace(/\s\(Costs\s(.*)\sActions\)/i, "—$1a"); // e.g., "(Costs 2 Actions)" → "—2a"
+    name = name.replace(/\sVariant\)/i, "—");                // e.g., "Ability (Variant)" → "Ability—"
 
-        // General cleanup
-        name = name.replace(/\s?\(/g, "—"); // any "(" or " (" → "—"
-        name = name.replace(/\)/g, ""); // any ")" → ""
-        name = name.replace(/\.+$/, ""); // removes one or more periods at the end
+    // General cleanup
+    name = name.replace(/\s?\(/g, "—"); // any "(" or " (" → "—"
+    name = name.replace(/\)/g, "");     // any ")" → ""
+    name = name.replace(/\.+$/, "");    // removes one or more periods at the end
 
-        // Catch for ill-formed names
-        name = name.replace(/.*template:error.*/, "Token Action " + (Math.floor(Math.random() * 100) + 1));
+    // Catch for ill-formed names
+name = name.replace(/.*shortID\s+([A-Za-z0-9_-]+).*/i, "Error_$1");
 
-        return name;
-    }
+    return name;
+}
+
 
 
 
@@ -428,12 +433,14 @@ Checks, Saves and Init are preceded by a period for consistent placement at the 
                 if (meta.macroPrefix === "repeating_attack") {
                     nameAttr = `${meta.macroPrefix}_${id}_atkname`;
                     //nameAttr = `repeating_attack_${id}_atkname`; //trying different prefixes
+                log("Raw nameAttr = " + nameAttr);
                 }
 
                 // --- Roll20 sheet quirk: repeating_trait rows use repeating_traits instead of _name ---
                 if (meta.macroPrefix === "repeating_trait") {
                     nameAttr = `repeating_traits_${id}_name`;
                     //nameAttr = `repeating_attack_${id}_atkname`; //trying different prefixes
+                log("Raw nameAttr = " + nameAttr);
                 }
 
                 let name = await getSheetItem(characterId, nameAttr);
@@ -451,6 +458,7 @@ Checks, Saves and Init are preceded by a period for consistent placement at the 
                         name
                     });
                 }
+            log("Raw name = " + name);
 
             } catch {
                 // skip if no name
