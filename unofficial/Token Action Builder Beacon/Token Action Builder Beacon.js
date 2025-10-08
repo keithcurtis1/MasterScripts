@@ -274,17 +274,18 @@ function abbreviateName(name) {
     if (!name) return "";
 
     // Weapon and attack type abbreviations
-    name = name.replace(/ \(One-Handed\)/i, "-1H");        // e.g., "Sword (One-Handed)" → "Sword-1H"
-    name = name.replace(/ \(Two-Handed\)/i, "-2H");        // e.g., "Greatsword (Two-Handed)" → "Greatsword-2H"
-    name = name.replace(/ \(Melee; One-Handed\)/i, "-1Hm");// e.g., "Dagger (Melee; One-Handed)" → "Dagger-1Hm"
-    name = name.replace(/ \(Melee; Two-Handed\)/i, "-2Hm");// e.g., "Polearm (Melee; Two-Handed)" → "Polearm-2Hm"
-    name = name.replace(/Thrown/i, "Thrn");                // e.g., "Thrown Weapon" → "Thrn Weapon"
-    name = name.replace(/Finesse/i, "Fnss");               // e.g., "Finesse Attack" → "Fnss Attack"
-    name = name.replace(/Dexterous/i, "Dex");              // e.g., "Dexterous Strike" → "Dex Strike"
-    name = name.replace(/Open Hand Technique/i, "Open Hand"); // e.g., "Open Hand Technique" → "Open Hand"
-    name = name.replace(/ \(Psionics\)/i, "—Psi");         // e.g., "Mind Blast (Psionics)" → "Mind Blast—Psi"
-    name = name.replace(/ \(Melee\)/i, "-m");              // e.g., "Punch (Melee)" → "Punch-m"
-    name = name.replace(/ \(Ranged\)/i, "-r");             // e.g., "Bow (Ranged)" → "Bow-r"
+    name = name.replace(/ \(One[-\s]?Handed\)/i, "-1H");        // "Sword (One-Handed)" or "Sword (One Handed)" → "Sword-1H"
+    name = name.replace(/ \(Two[-\s]?Handed\)/i, "-2H");        // "Greatsword (Two-Handed)" or "Greatsword (Two Handed)" → "Greatsword-2H"
+    name = name.replace(/ \(Melee; One[-\s]?Handed\)/i, "-1Hm");// e.g., "Dagger (Melee; One-Handed)" → "Dagger-1Hm"
+    name = name.replace(/ \(Melee; Two[-\s]?Handed\)/i, "-2Hm");// e.g., "Polearm (Melee; Two-Handed)" → "Polearm-2Hm"
+    name = name.replace(/Thrown/i, "Thrn");                     // e.g., "Thrown Weapon" → "Thrn Weapon"
+    name = name.replace(/Finesse/i, "Fnss");                    // e.g., "Finesse Attack" → "Fnss Attack"
+    name = name.replace(/Dexterous/i, "Dex");                   // e.g., "Dexterous Strike" → "Dex Strike"
+    name = name.replace(/Open Hand Technique/i, "Open Hand");   // e.g., "Open Hand Technique" → "Open Hand"
+    name = name.replace(/ \(Psionics\)/i, "—Psi");              // e.g., "Mind Blast (Psionics)" → "Mind Blast—Psi"
+    name = name.replace(/ \(Melee\)/i, "-m");                   // e.g., "Punch (Melee)" → "Punch-m"
+    name = name.replace(/ \(Ranged\)/i, "-r");                  // e.g., "Bow (Ranged)" → "Bow-r"
+    name = name.replace(/\bForm Only\b/i, "Form");              // e.g., "Bear Form Only" → "Bear Form"
 
     // HP status phrases
     name = name.replace(/swarm has more than half hp/i, "HP>Half"); // e.g., "swarm has more than half HP" → "HP>Half"
@@ -316,7 +317,7 @@ function abbreviateName(name) {
     name = name.replace(/\.+$/, "");    // removes one or more periods at the end
 
     // Catch for ill-formed names
-name = name.replace(/.*shortID\s+([A-Za-z0-9_-]+).*/i, "Error_$1");
+    name = name.replace(/.*template:error.*/i, "Token Action " + (Math.floor(Math.random() * 100) + 1));
 
     return name;
 }
