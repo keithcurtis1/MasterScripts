@@ -1,0 +1,13 @@
+{
+	"name": "Token Action Builder",
+	"script": "Token Action Builder.js",
+	"version": "0.0.1",
+	"description": "*By keithcurtis* Full description to come when script is finalized",
+	"authors": "Keith Curtis",
+	"roll20userid": "162065",
+	"modifies": {
+		"ability.*": "read, write"
+	},
+	"conflicts": [],
+	"previousversions": ["0.0.1"]
+}
