@@ -8,7 +8,9 @@ on('chat:message', (msg) => {
     if (msg.type !== 'api' || !msg.content.startsWith('!fade')) return;
 
     const player = getObj('player', msg.playerid);
-const args = msg.content.split(/\s+--/).slice(1).map(a => a.trim());
+    const args = msg.content.split(/\s+--/).slice(1).map(a => a.trim()); //better
+
+
     const FADE_STEPS = 20;
     let activeIntervals = [];
 
@@ -19,7 +21,10 @@ const args = msg.content.split(/\s+--/).slice(1).map(a => a.trim());
     let affectAll = false;
 
     args.forEach(arg => {
-        const [key, value] = arg.split('|');
+        const [keyRaw, valueRaw] = arg.split('|');
+        const key = (keyRaw || '').trim().toLowerCase();
+        const value = valueRaw ? valueRaw.trim() : undefined;
+
         if (key === 'in') {
             fadeIn = true;
             fadeTime = value ? parseFloat(value) : 1;
@@ -30,7 +35,6 @@ const args = msg.content.split(/\s+--/).slice(1).map(a => a.trim());
             affectAll = true;
         }
     });
-
     // Defensive checks
     if (!fadeIn && !fadeOut) {
         sendChat('Fade', `/w "${player.get('displayname')}" You must specify --in or --out.`);
@@ -38,17 +42,20 @@ const args = msg.content.split(/\s+--/).slice(1).map(a => a.trim());
     }
 
     const targetOpacity = fadeIn ? 1.0 : 0.0;
-    const pageId = player && player.get('lastpage');
+let pageId =
+    (player && player.get('lastpage')) ||
+    Campaign().get('playerpageid');
 
     if (!affectAll && (!msg.selected || msg.selected.length === 0)) {
         sendChat('Fade', `/w "${player.get('displayname')}" No graphics selected. Use --all to affect the entire page.`);
         return;
     }
 
-    if (affectAll && !pageId) {
-        sendChat('Fade', `/w "${player.get('displayname')}" Could not determine current page.`);
-        return;
-    }
+if (affectAll && !pageId) {
+    sendChat('Fade', `/w "${player.get('displayname')}" Could not determine current page.`);
+    return;
+}
+
 
     // Collect target graphics
     let targets = affectAll
