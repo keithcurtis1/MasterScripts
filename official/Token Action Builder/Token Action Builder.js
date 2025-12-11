@@ -572,94 +572,113 @@ function abbreviateName(name) {
     // COMMON MACROS FOR CHECKS, SKILLS AND INITIATIVE
     // =======================
 
-    async function createBasicAbilities(characterId, which) {
-        const abilityAttrs = [
-            "strength_bonus", "dexterity_bonus", "constitution_bonus",
-            "intelligence_bonus", "wisdom_bonus", "charisma_bonus"
-        ];
-        const skillAttrs = [
-            "acrobatics_bonus", "animal_handling_bonus", "arcana_bonus", "athletics_bonus",
-            "deception_bonus", "history_bonus", "insight_bonus", "intimidation_bonus",
-            "investigation_bonus", "medicine_bonus", "nature_bonus", "perception_bonus",
-            "performance_bonus", "persuasion_bonus", "religion_bonus",
-            "sleight_of_hand_bonus", "stealth_bonus", "survival_bonus"
+async function createBasicAbilities(characterId, which) {
+
+    // Added save-mod attributes here
+    const abilityAttrs = [
+        "strength_bonus", "dexterity_bonus", "constitution_bonus",
+        "intelligence_bonus", "wisdom_bonus", "charisma_bonus",
+
+        "strength_save_mod", "dexterity_save_mod", "constitution_save_mod",
+        "intelligence_save_mod", "wisdom_save_mod", "charisma_save_mod"
+    ];
+
+    const skillAttrs = [
+        "acrobatics_bonus", "animal_handling_bonus", "arcana_bonus", "athletics_bonus",
+        "deception_bonus", "history_bonus", "insight_bonus", "intimidation_bonus",
+        "investigation_bonus", "medicine_bonus", "nature_bonus", "perception_bonus",
+        "performance_bonus", "persuasion_bonus", "religion_bonus",
+        "sleight_of_hand_bonus", "stealth_bonus", "survival_bonus"
+    ];
+
+    const allAttrs = [...abilityAttrs, ...skillAttrs];
+
+    // Fetch all values in parallel
+    const values = await Promise.all(
+        allAttrs.map(attr =>
+            getSheetItem(characterId, attr).catch(() => 0)
+        )
+    );
+
+    // Build bonuses map
+    const bonuses = {};
+    allAttrs.forEach((attr, i) => {
+        const val = parseInt(values[i]) || 0;
+        bonuses[attr] = val;
+    });
+
+    if (which === "init") {
+        createTokenAction(characterId, ".Init", "%{selected|initiative}");
+        return;
+    }
+
+    function formatOption(label, attr, bonus) {
+        const sign = bonus >= 0 ? "+" : "";
+        return `| ${label} ${sign}${bonus}, %{selected&#124;${attr}&#125;`;
+    }
+
+    //
+    // SAVING THROWS (patched)
+    //
+    if (which === "saves") {
+        const saveOptionsRaw = [
+            ["Strength",     "npc_strength_save",     bonuses.strength_save_mod],
+            ["Dexterity",    "npc_dexterity_save",    bonuses.dexterity_save_mod],
+            ["Constitution", "npc_constitution_save", bonuses.constitution_save_mod],
+            ["Intelligence", "npc_intelligence_save", bonuses.intelligence_save_mod],
+            ["Wisdom",       "npc_wisdom_save",       bonuses.wisdom_save_mod],
+            ["Charisma",     "npc_charisma_save",     bonuses.charisma_save_mod]
         ];
 
-        const allAttrs = [...abilityAttrs, ...skillAttrs];
-
-        // Fetch all values in parallel
-        const values = await Promise.all(
-            allAttrs.map(attr =>
-                getSheetItem(characterId, attr).catch(() => 0)
-            )
+        const saveOptions = saveOptionsRaw.map(([label, attr, bonus]) =>
+            formatOption(label, attr, bonus)
         );
 
-        // Build bonuses map
-        const bonuses = {};
-        allAttrs.forEach((attr, i) => {
-            const val = parseInt(values[i]) || 0;
-            bonuses[attr] = val;
-        });
-
-        if (which === "init") {
-            createTokenAction(characterId, ".Init", "%{selected|initiative}");
-            return;
+        if (saveOptions.length) {
+            saveOptions[saveOptions.length - 1] =
+                saveOptions[saveOptions.length - 1].replace(/&#125;$/, "&#125;}");
         }
 
-        function formatOption(label, attr, bonus) {
-            const sign = bonus >= 0 ? "+" : "";
-            return `| ${label} ${sign}${bonus}, %{selected&#124;${attr}&#125;`;
-        }
-
-        if (which === "saves") {
-            const saveOptionsRaw = [
-                ["Strength", "npc_strength_save", bonuses.strength_bonus],
-                ["Dexterity", "npc_dexterity_save", bonuses.dexterity_bonus],
-                ["Constitution", "npc_constitution_save", bonuses.constitution_bonus],
-                ["Intelligence", "npc_intelligence_save", bonuses.intelligence_bonus],
-                ["Wisdom", "npc_wisdom_save", bonuses.wisdom_bonus],
-                ["Charisma", "npc_charisma_save", bonuses.charisma_bonus]
-            ];
-
-            const saveOptions = saveOptionsRaw.map(([label, attr, bonus]) => formatOption(label, attr, bonus));
-            if (saveOptions.length) {
-                saveOptions[saveOptions.length - 1] = saveOptions[saveOptions.length - 1].replace(/&#125;$/, "&#125;}");
-            }
-            const saveAction = `?{Saving Throw?\n${saveOptions.join("\n")}`;
-            createTokenAction(characterId, ".Save", saveAction);
-            return;
-        }
-
-        if (which === "checks") {
-            const checkOptions = [];
-
-            for (let [label, attr] of [
-                    ["Strength", "strength"],
-                    ["Dexterity", "dexterity"],
-                    ["Constitution", "constitution"],
-                    ["Intelligence", "intelligence"],
-                    ["Wisdom", "wisdom"],
-                    ["Charisma", "charisma"]
-                ]) {
-                checkOptions.push(formatOption(label, attr, bonuses[`${attr}_bonus`] || 0));
-            }
-
-            for (let skill of skillAttrs) {
-                const bonus = bonuses[skill] || 0;
-                const cleanName = skill.replace("_bonus", "").replace(/_/g, " ");
-                const baseName = skill.replace("_bonus", "");
-                const labelName = cleanName.replace(/\b\w/g, c => c.toUpperCase());
-                checkOptions.push(formatOption(labelName, baseName, bonus));
-            }
-
-            if (checkOptions.length) {
-                checkOptions[checkOptions.length - 1] = checkOptions[checkOptions.length - 1].replace(/&#125;$/, "&#125;}");
-            }
-            const checkAction = `?{Check?\n${checkOptions.join("\n")}`;
-            createTokenAction(characterId, ".Check", checkAction);
-            return;
-        }
+        const saveAction = `?{Saving Throw?\n${saveOptions.join("\n")}`;
+        createTokenAction(characterId, ".Save", saveAction);
+        return;
     }
+
+    //
+    // ABILITY CHECKS (unchanged)
+    //
+    if (which === "checks") {
+        const checkOptions = [];
+
+        for (let [label, attr] of [
+                ["Strength", "strength"],
+                ["Dexterity", "dexterity"],
+                ["Constitution", "constitution"],
+                ["Intelligence", "intelligence"],
+                ["Wisdom", "wisdom"],
+                ["Charisma", "charisma"]
+            ]) {
+            checkOptions.push(formatOption(label, attr, bonuses[`${attr}_bonus`] || 0));
+        }
+
+        for (let skill of skillAttrs) {
+            const bonus = bonuses[skill] || 0;
+            const cleanName = skill.replace("_bonus", "").replace(/_/g, " ");
+            const baseName = skill.replace("_bonus", "");
+            const labelName = cleanName.replace(/\b\w/g, c => c.toUpperCase());
+            checkOptions.push(formatOption(labelName, baseName, bonus));
+        }
+
+        if (checkOptions.length) {
+            checkOptions[checkOptions.length - 1] =
+                checkOptions[checkOptions.length - 1].replace(/&#125;$/, "&#125;}");
+        }
+
+        const checkAction = `?{Check?\n${checkOptions.join("\n")}`;
+        createTokenAction(characterId, ".Check", checkAction);
+        return;
+    }
+}
 
 
     // =======================
