@@ -3,10 +3,6 @@
 
     const SCRIPT_NAME = 'PinNote';
 
-    /* ============================
-     * Utilities
-     * ============================ */
-
     const isGMPlayer = (playerid) => playerIsGM(playerid);
 
     const getTemplate = (name) => {
@@ -33,6 +29,37 @@
         );
     };
 
+    /* ============================================================
+     * HEADER COLOR ENFORCEMENT
+     * ============================================================ */
+
+    const enforceHeaderColor = (html, template) => {
+        if (!html) return html;
+
+        const colorMatch = template.textcode.match(/color\s*:\s*([^;"]+)/i);
+        if (!colorMatch) return html;
+
+        const colorValue = colorMatch[1].trim();
+
+        return html.replace(
+            /<(h[1-4])\b([^>]*)>/gi,
+            (match, tag, attrs) => {
+
+                if (/style\s*=/i.test(attrs)) {
+                    return `<${tag}${attrs.replace(
+                        /style\s*=\s*["']([^"']*)["']/i,
+                        (m, styleContent) =>
+                            `style="${styleContent}; color: ${colorValue};"`
+                    )}>`;
+                }
+
+                return `<${tag}${attrs} style="color: ${colorValue};">`;
+            }
+        );
+    };
+
+    /* ============================================================ */
+
     const parseArgs = (content) => {
         const args = {};
         content.replace(/--([^|]+)\|([^\s]+)/gi, (_, k, v) => {
@@ -42,17 +69,12 @@
         return args;
     };
 
-    /* ============================
-     * Helper: Extract Section
-     * ============================ */
-
     const extractHandoutSection = ({ handout, subLink, subLinkType }) => {
         return new Promise((resolve) => {
 
             if (!handout) return resolve(null);
 
             if (!subLink) {
-                // Entire handout
                 const field = subLinkType === 'headerGM' ? 'gmnotes' : 'notes';
                 handout.get(field, (content) => resolve(content || null));
                 return;
@@ -73,10 +95,8 @@
                 let match;
 
                 while ((match = headerRegex.exec(content)) !== null) {
-                    const fullHeader = match[0];
-                    const tagName = match[1]; // h1-h4
+                    const tagName = match[1];
                     const innerHTML = match[2];
-
                     const stripped = innerHTML.replace(/<[^>]+>/g, '');
 
                     if (stripped === subLink) {
@@ -96,9 +116,7 @@
                             ? headerRegex.lastIndex + stopMatch.index
                             : content.length;
 
-                        const extracted = content.slice(startIndex, endIndex);
-                        //log("html =" + extracted);
-                        return resolve(extracted);
+                        return resolve(content.slice(startIndex, endIndex));
                     }
                 }
 
@@ -107,37 +125,53 @@
         });
     };
 
-    /* ============================
-     * Main
-     * ============================ */
+    const transformBlockquoteMode = (html) => {
+
+        const blockRegex = /<blockquote\b[^>]*>([\s\S]*?)<\/blockquote>/gi;
+
+        let match;
+        let lastIndex = 0;
+        let playerContent = '';
+        let gmContent = '';
+        let found = false;
+
+        while ((match = blockRegex.exec(html)) !== null) {
+            found = true;
+            gmContent += html.slice(lastIndex, match.index);
+            playerContent += match[1];
+            lastIndex = blockRegex.lastIndex;
+        }
+
+        gmContent += html.slice(lastIndex);
+
+        if (!found) {
+            return { player: '', gm: html };
+        }
+
+        return { player: playerContent, gm: gmContent };
+    };
 
     on('chat:message', async (msg) => {
         if (msg.type !== 'api' || !msg.content.startsWith('!pinnote')) return;
 
         if (typeof Supernotes_Templates === 'undefined') {
-            sendChat(
-                SCRIPT_NAME,
-                `/w gm PinNote requires Supernotes_Templates to be loaded.`
-            );
+            sendChat(SCRIPT_NAME, `/w gm PinNote requires Supernotes_Templates to be loaded.`);
             return;
         }
 
         const args = parseArgs(msg.content);
         const isGM = isGMPlayer(msg.playerid);
 
-        if (!msg.selected || msg.selected.length === 0) {
+        if (!msg.selected || msg.selected.length === 0)
             return sendGenericError(msg, 'No pin selected.');
-        }
 
         const sel = msg.selected.find(s => s._type === 'pin');
-        if (!sel) {
+        if (!sel)
             return sendGenericError(msg, 'Selected object is not a pin.');
-        }
 
         const pin = getObj('pin', sel._id);
-        if (!pin) {
+        if (!pin)
             return sendGenericError(msg, 'Selected pin could not be resolved.');
-        }
 
         const isSynced =
             !pin.get('notesDesynced') &&
@@ -147,7 +181,7 @@
         const linkType = pin.get('linkType');
 
         /* ============================================================
-         * LINKED HANDOUT MODE (ONLY IF SYNCED)
+         * LINKED HANDOUT MODE
          * ============================================================ */
 
         if (isSynced && linkType === 'handout') {
@@ -155,49 +189,72 @@
             const handoutId = pin.get('link');
             const subLink = pin.get('subLink');
             const subLinkType = pin.get('subLinkType');
+            const autoNotesType = pin.get('autoNotesType');
 
             const handout = getObj('handout', handoutId);
-            if (!handout) {
+            if (!handout)
                 return sendGenericError(msg, 'Linked handout not found.');
-            }
 
-            const extracted = await extractHandoutSection({
+            let extracted = await extractHandoutSection({
                 handout,
                 subLink,
                 subLinkType
             });
 
-            if (!extracted) {
+            if (!extracted)
                 return sendGenericError(msg, 'Requested section not found in handout.');
-            }
 
             const template = getTemplate(args.template);
             if (!template) return;
 
             const sender = pin.get('title') || SCRIPT_NAME;
+            const titleText = subLink || sender;
+
+            if (subLink) {
+                const headerStripRegex = /^<h[1-4]\b[^>]*>[\s\S]*?<\/h[1-4]>/i;
+                extracted = extracted.replace(headerStripRegex, '');
+            }
 
             let to = (args.to || 'pc').toLowerCase();
             if (!isGM) to = 'pc';
 
             let whisperPrefix = '';
-
             const extractingGM = subLinkType?.toLowerCase() === 'headergm';
+
+            let visibleContent = extracted;
+            let gmBlock = '';
+
+            if (autoNotesType === 'blockquote') {
+
+                const transformed = transformBlockquoteMode(extracted);
+
+                visibleContent = enforceHeaderColor(transformed.player, template);
+
+                if (transformed.gm && to !== 'pc') {
+                    gmBlock =
+                        `<div style=${template.whisperStyle}>` +
+                        enforceHeaderColor(transformed.gm, template) +
+                        `</div>`;
+                }
+
+            } else {
+                visibleContent = enforceHeaderColor(visibleContent, template);
+            }
 
             if (extractingGM) {
                 whisperPrefix = '/w gm ';
-            } else {
-                if (to === 'gm') {
-                    whisperPrefix = '/w gm ';
-                } else if (to === 'self') {
-                    whisperPrefix = `/w "${msg.who}" `;
-                }
+            } else if (to === 'gm') {
+                whisperPrefix = '/w gm ';
+            } else if (to === 'self') {
+                whisperPrefix = `/w "${msg.who}" `;
             }
 
             const html =
                 template.boxcode +
-                template.titlecode + sender +
+                template.titlecode + titleText +
                 template.textcode +
-                extracted +
+                (visibleContent || '') +
+                gmBlock +
                 '</div></div>' +
                 template.footer +
                 '</div>';
@@ -207,7 +264,7 @@
         }
 
         /* ============================================================
-         * EXISTING CUSTOM PIN BEHAVIOR
+         * CUSTOM PIN MODE
          * ============================================================ */
 
         if (
@@ -222,21 +279,15 @@
         }
 
         const notes = (pin.get('notes') || '').trim();
-        if (!notes) {
+        if (!notes)
             return sendGenericError(msg, 'This pin has no notes to display.');
-        }
 
         let to = (args.to || 'pc').toLowerCase();
-        if (!isGM) {
-            to = 'pc';
-        }
+        if (!isGM) to = 'pc';
 
         let whisperPrefix = '';
-        if (to === 'gm') {
-            whisperPrefix = '/w gm ';
-        } else if (to === 'self') {
-            whisperPrefix = `/w "${msg.who}" `;
-        }
+        if (to === 'gm') whisperPrefix = '/w gm ';
+        else if (to === 'self') whisperPrefix = `/w "${msg.who}" `;
 
         const template = getTemplate(args.template);
         if (!template) return;
@@ -251,11 +302,13 @@
                 `style="max-width:100%; max-height:400px; display:block; margin-bottom:8px;">`;
         }
 
+        const coloredNotes = enforceHeaderColor(notes, template);
+
         let gmBlock = '';
         if (isGM && to !== 'pc' && pin.get('gmNotes')) {
             gmBlock =
                 `<div style=${template.whisperStyle}>` +
-                pin.get('gmNotes') +
+                enforceHeaderColor(pin.get('gmNotes'), template) +
                 `</div>`;
         }
 
@@ -264,7 +317,7 @@
             template.titlecode + sender +
             template.textcode +
             imageBlock +
-            notes +
+            coloredNotes +
             gmBlock +
             '</div></div>' +
             template.footer +
