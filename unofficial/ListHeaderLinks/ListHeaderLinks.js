@@ -31,7 +31,17 @@ const getCSS = () => ({
     handoutButton: `display:block; margin:3px 0; padding:3px 6px; background:#e2c69c; color:#111 !important; border:0px solid transparent; border-radius:4px; font-weight:bold; text-decoration:none;`,
     messageContainer: `background:#bbb; padding:12px; border-radius:10px; border:2px solid #888; color:#111;`,
     messageTitle: `font-weight:bold; font-size:20px; margin-bottom:6px;`,
-    scrollPanel: `max-height:800px; overflow-y:auto; padding-right:4px;`,
+    scrollPanel: `max-height:630px; overflow-y:auto; padding-right:4px;`,
+    headerContainer: `
+width:100%;
+`,
+
+headerScroll: `
+max-height:600px;
+overflow-y:auto;
+padding-right:4px;
+`,
+    
     headerFilterRow: `
 width:100%;
 white-space:nowrap;
@@ -112,6 +122,24 @@ const getOrCreateIndexHandout = () => {
     return handout;
 };
 
+
+/* =========================================================
+BUILD HANDOUT QUERY
+========================================================= */
+const buildHandoutQuery = () => {
+
+    const handouts = findObjs({_type:"handout"})
+        .filter(h => h.get("name") !== "!HeaderLinks")
+        .sort((a,b)=>a.get("name").localeCompare(b.get("name")));
+
+    const options = handouts.map(h =>
+        `${h.get("name")},${h.id}`
+    ).join("|");
+
+    return `?{Select Handout|${options}}`;
+};
+
+
 /* =========================================================
 HEADER PARSER
 ========================================================= */
@@ -160,9 +188,6 @@ const renderHeaderListForSection = (headers) => {
 /* =========================================================
 HEADER FILTER ROW WITH NOTES/GMNOTES
 ========================================================= */
-/* =========================================================
-HEADER FILTER ROW WITH NOTES/GMNOTES (DIV + INLINE BLOCK)
-========================================================= */
 const renderHeaderFilterRow = (handoutID, currentLevel=4, currentSection="gmnotes") => {
 
     const css = getCSS();
@@ -176,12 +201,14 @@ const renderHeaderFilterRow = (handoutID, currentLevel=4, currentSection="gmnote
     let row = `<div style="${css.headerFilterRow}">`;
 
     /* Handout Name Button (40%) */
-    row += `
-        <a style="${css.headerHandoutButton} width:50%;"
-           href="!headerlinks --show ${handoutID} --level 4 --section=${currentSection}">
-            ${handoutName}
-        </a>
-    `;
+const query = buildHandoutQuery();
+
+row += `
+<a style="${css.headerHandoutButton} width:50%;"
+   href="!headerlinks --show ${query} --level 4 --section=${currentSection}">
+    ${handoutName}
+</a>
+`;
 
     /* Notes / GMNotes buttons (10% each) */
     sections.forEach(sec => {
@@ -253,19 +280,24 @@ const buildHandoutList = () => {
 /* =========================================================
 PAGE RENDERER
 ========================================================= */
-const renderIndexPage = (selectedHeadersHTML="") => {
+const renderIndexPage = (selectedHeadersHTML={}) => {
     const css = getCSS();
     const left = buildHandoutList();
     return `
-    <div style="${css.handoutButton}font-size:16px;">Select a handout. A list of links will appear at right. Right-click to get the url for linking; do not copy and paste formatted link.<br>Use the filter buttons in the top row to constrain to a maximum header level.</div>
+    <div style="${css.handoutButton}font-size:14px;">Select a handout to display its header links. Once the filter bar appears, you can click the handout name there to select a different handout from a dropdown list.<br>To copy a link, RIGHT CLICK THE LINK AND COPY ITS URL. Do NOT copy and paste the formatted link text. Use the top-row buttons to limit the max header level.</div>
     <table style="${css.tableLayout}">
     <tr>
         <td style="${css.leftPanel}">
             <div style="${css.scrollPanel}">${left}</div>
         </td>
-        <td style="${css.rightPanel}">
-            ${selectedHeadersHTML || "Select a handout to list its headers."}
-        </td>
+<td style="${css.rightPanel}">
+    <div style="${css.headerContainer}">
+        ${selectedHeadersHTML.headerRow || ""}
+    </div>
+    <div style="${css.headerScroll}">
+        ${selectedHeadersHTML.headerList || "Select a handout to list its headers."}
+    </div>
+</td>
     </tr>
     </table>
     `;
@@ -288,8 +320,14 @@ const showHeaders = (handoutID, level=4, section="gmnotes") => {
     const filterRow = renderHeaderFilterRow(handoutID, level, section);
     const headers = ((state.ListHeaderLinks.headers[handoutID] || {})[section]) || [];
     const filtered = headers.filter(h => h.level <= level);
-    const headersHTML = filtered.length ? renderHeaderListForSection(filtered) : "No headers found.";
-    const page = renderIndexPage(filterRow + headersHTML);
+    const headersHTML = filtered.length
+        ? renderHeaderListForSection(filtered)
+        : "No headers found.";
+    const page = renderIndexPage({
+        headerRow: filterRow,
+        headerList: headersHTML
+    });
+
     indexHandout.set("notes", page);
 };
 
