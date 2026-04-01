@@ -64,7 +64,7 @@ Handout Mode displays journal entries with structured navigation.
 
 - **All** — full handout view
 - **H1–H4** — filter by header level
-- **{ toggle** — include lower-level headers
+- **arrow toggle** — include lower-level headers
 
 ### GM Notes Support
 
